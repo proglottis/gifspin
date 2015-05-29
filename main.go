@@ -27,7 +27,7 @@ func matMul(p, q *f64.Aff3) f64.Aff3 {
 	}
 }
 
-func rotate(dst draw.Image, src image.Image, angle float64) {
+func rotate(dst draw.Image, src image.Image, angle float64, op draw.Op) {
 	db := dst.Bounds()
 	sb := src.Bounds()
 	dx := float64(db.Min.X) + float64(db.Dx())/2
@@ -39,7 +39,7 @@ func rotate(dst draw.Image, src image.Image, angle float64) {
 	s2d := f64.Aff3{1, 0, sx, 0, 1, sy}
 	s2d = matMul(&s2d, &f64.Aff3{c, -s, 0, s, c, 0})
 	s2d = matMul(&s2d, &f64.Aff3{1, 0, -dx, 0, 1, -dy})
-	draw.BiLinear.Transform(dst, &s2d, src, sb, nil)
+	draw.BiLinear.Transform(dst, &s2d, src, sb, op, nil)
 }
 
 func openImage(name string) (image.Image, error) {
@@ -84,8 +84,8 @@ func main() {
 	for i := 0; i < steps; i++ {
 		log.Println("Frame", i+1)
 		rotated := image.NewRGBA(bounds)
-		draw.Copy(rotated, image.Point{}, backfill, rotated.Bounds(), nil)
-		rotate(rotated, original, float64(i)*stepAngle)
+		draw.Copy(rotated, image.Point{}, backfill, rotated.Bounds(), draw.Src, nil)
+		rotate(rotated, original, float64(i)*stepAngle, draw.Src)
 		frame := image.NewPaletted(bounds, palette.WebSafe)
 		drawer.Draw(frame, bounds, rotated, bounds.Min)
 		frames = append(frames, frame)
