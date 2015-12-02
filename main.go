@@ -9,7 +9,6 @@ import (
 	"log"
 	"math"
 	"os"
-	"runtime"
 	"sync"
 
 	"golang.org/x/image/draw"
@@ -42,7 +41,7 @@ func rotate(dst draw.Image, src image.Image, angle float64, op draw.Op) {
 	s2d := f64.Aff3{1, 0, sx, 0, 1, sy}
 	s2d = matMul(&s2d, &f64.Aff3{c, -s, 0, s, c, 0})
 	s2d = matMul(&s2d, &f64.Aff3{1, 0, -dx, 0, 1, -dy})
-	draw.BiLinear.Transform(dst, &s2d, src, sb, op, nil)
+	draw.BiLinear.Transform(dst, s2d, src, sb, op, nil)
 }
 
 func openImage(name string) (image.Image, error) {
@@ -128,9 +127,6 @@ func main() {
 	flag.IntVar(&steps, "steps", 25, "Number of steps to complete a full rotation")
 	flag.IntVar(&delay, "delay", 1, "Amount of delay between steps in 100ths of a second")
 	flag.Parse()
-
-	log.Println("GOMAXPROCS set to", runtime.NumCPU())
-	runtime.NumCPU()
 
 	original, err := openImage(flag.Arg(0))
 	if err != nil {
