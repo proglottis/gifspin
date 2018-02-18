@@ -1,7 +1,6 @@
 package main
 
 import (
-	"container/heap"
 	"flag"
 	"image"
 	"image/color/palette"
@@ -63,29 +62,6 @@ func createGIF(name string, img *gif.GIF) error {
 	return gif.EncodeAll(f, img)
 }
 
-type frame struct {
-	i     int
-	image *image.Paletted
-}
-
-type frameHeap []frame
-
-func (h frameHeap) Len() int           { return len(h) }
-func (h frameHeap) Less(i, j int) bool { return h[i].i < h[j].i }
-func (h frameHeap) Swap(i, j int)      { h[i], h[j] = h[j], h[i] }
-
-func (h *frameHeap) Push(x interface{}) {
-	*h = append(*h, x.(frame))
-}
-
-func (h *frameHeap) Pop() interface{} {
-	old := *h
-	n := len(old)
-	x := old[n-1]
-	*h = old[0 : n-1]
-	return x
-}
-
 func rotatePaletted(src image.Image, sb image.Rectangle, backfill image.Image, angle float64) *image.Paletted {
 	rotated := image.NewRGBA(sb)
 	draw.Copy(rotated, image.Point{}, backfill, rotated.Bounds(), draw.Src, nil)
@@ -95,31 +71,24 @@ func rotatePaletted(src image.Image, sb image.Rectangle, backfill image.Image, a
 	return dst
 }
 
-func generateFrames(src image.Image, steps int) <-chan frame {
+func generateFrames(src image.Image, steps int) []*image.Paletted {
 	bounds := src.Bounds()
 	backfill := image.NewUniform(src.At(bounds.Min.X, bounds.Min.Y))
 	stepAngle := 2 * math.Pi / float64(steps)
 
-	c := make(chan frame)
+	frames := make([]*image.Paletted, steps)
 	var wg sync.WaitGroup
 	wg.Add(steps)
 	for i := 0; i < steps; i++ {
 		go func(i int) {
+			defer wg.Done()
 			log.Println("Frame", i+1, "starting")
-			dst := rotatePaletted(src, bounds, backfill, stepAngle*float64(i))
+			frames[i] = rotatePaletted(src, bounds, backfill, stepAngle*float64(i))
 			log.Println("Frame", i+1, "done")
-			c <- frame{
-				i:     i,
-				image: dst,
-			}
-			wg.Done()
 		}(i)
 	}
-	go func() {
-		wg.Wait()
-		close(c)
-	}()
-	return c
+	wg.Wait()
+	return frames
 }
 
 func main() {
@@ -132,20 +101,10 @@ func main() {
 	if err != nil {
 		log.Fatal("Cannot load image: ", err)
 	}
-
-	h := &frameHeap{}
-	heap.Init(h)
-	for f := range generateFrames(original, steps) {
-		heap.Push(h, f)
-		log.Println("Frame", f.i+1, "queued")
-	}
-	var frames []*image.Paletted
-	var delays []int
-	for h.Len() > 0 {
-		f := heap.Pop(h).(frame)
-		log.Println("Frame", f.i+1, "dequeued")
-		frames = append(frames, f.image)
-		delays = append(delays, delay)
+	frames := generateFrames(original, steps)
+	delays := make([]int, steps)
+	for i := range delays {
+		delays[i] = delay
 	}
 
 	log.Println("Writing to", flag.Arg(1))
